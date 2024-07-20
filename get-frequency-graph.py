@@ -272,5 +272,8 @@ if __name__ == '__main__':
         fig.write_html(f'{output_dir}/interval-{interval_value_in_minutes}.html')
         fig2.write_html(f'{output_dir}/timetable.html')
         departure_minutes_df.to_csv(f'{output_dir}/timetable.csv', index=False)
+        routes = departure_minutes_df['route_short_name'].unique()
         with open(f'{output_dir}/README.md', 'w') as f:
             f.write(f'{start_stop_name} to {end_stop_name} on {my_day_str} for mode {mode_id}. ID: {start_stop} to {end_stop}.')
+            f.write('\n\n')
+            f.write(f'Routes: {', '.join(sorted(routes))}')
