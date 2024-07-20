@@ -52,7 +52,7 @@ def plot_timetable_rectangles(start_stop: str, end_stop: str, my_day_str: str, m
 
     cursor.execute(
     f'''
-    SELECT gtfs_{mode_id}.stop_times.departure_time, gtfs_{mode_id}.stop_times.trip_id, gtfs_{mode_id}.stop_times.stop_sequence, gtfs_{mode_id}.stop_times.stop_id, gtfs_{mode_id}.routes.route_short_name, gtfs_{mode_id}.routes.route_long_name
+    SELECT gtfs_{mode_id}.stop_times.departure_time, gtfs_{mode_id}.stop_times.arrival_time, gtfs_{mode_id}.stop_times.trip_id, gtfs_{mode_id}.stop_times.stop_sequence, gtfs_{mode_id}.stop_times.stop_id, gtfs_{mode_id}.routes.route_short_name, gtfs_{mode_id}.routes.route_long_name
     FROM gtfs_{mode_id}.stop_times 
     JOIN gtfs_{mode_id}.trips USING (trip_id)
     JOIN gtfs_{mode_id}.routes USING (route_id)
@@ -70,7 +70,7 @@ def plot_timetable_rectangles(start_stop: str, end_stop: str, my_day_str: str, m
     trips_to_start_stop_record : dict[str, dict[str, str]] = {}
     correct_trips : dict[str, str] = {}
 
-    for departure_time, trip_id, stop_sequence, stop_id, route_short_name, route_long_name in potential_trips:
+    for departure_time, arrival_time, trip_id, stop_sequence, stop_id, route_short_name, route_long_name in potential_trips:
 
         if stop_id == start_stop:
             trips_to_start_stop_record[trip_id] = {'departure_time': departure_time, 'stop_sequence': stop_sequence}
@@ -78,10 +78,10 @@ def plot_timetable_rectangles(start_stop: str, end_stop: str, my_day_str: str, m
         if stop_id == end_stop and trip_id in trips_to_start_stop_record and int(trips_to_start_stop_record[trip_id]['stop_sequence']) <= int(stop_sequence):
             correct_trips[trip_id] = {
                 'trip_id': trip_id,
-                'departure_time': trips_to_start_stop_record[trip_id]['departure_time'],
-                'arrival_end': departure_time,
                 'route_short_name': route_short_name,
                 'route_long_name': route_long_name,
+                'departure_time': trips_to_start_stop_record[trip_id]['departure_time'],
+                'arrival_end': arrival_time,
             }
 
     if len(correct_trips) == 0:
@@ -172,9 +172,9 @@ def plot_frequency_by_interval(my_day_str, start_stop, end_stop, mode_id, interv
 
     my_weekday_name = datetime.strptime(my_day_str, '%Y%m%d').strftime('%A').lower()
 
-    CURSOR.execute(
+    cursor.execute(
     f'''
-    SELECT gtfs_{mode_id}.stop_times.departure_time, gtfs_{mode_id}.stop_times.trip_id, gtfs_{mode_id}.stop_times.stop_sequence, gtfs_{mode_id}.stop_times.stop_id, gtfs_{mode_id}.routes.route_short_name, gtfs_{mode_id}.routes.route_long_name
+    SELECT gtfs_{mode_id}.stop_times.departure_time, gtfs_{mode_id}.stop_times.arrival_time, gtfs_{mode_id}.stop_times.trip_id, gtfs_{mode_id}.stop_times.stop_sequence, gtfs_{mode_id}.stop_times.stop_id, gtfs_{mode_id}.routes.route_short_name, gtfs_{mode_id}.routes.route_long_name
     FROM gtfs_{mode_id}.stop_times 
     JOIN gtfs_{mode_id}.trips USING (trip_id)
     JOIN gtfs_{mode_id}.routes USING (route_id)
@@ -182,7 +182,7 @@ def plot_frequency_by_interval(my_day_str, start_stop, end_stop, mode_id, interv
     WHERE (stop_id = '{start_stop}' OR stop_id = '{end_stop}')
     AND {my_weekday_name} = '1'
     AND start_date <= '{my_day_str}'
-    AND end_date >= '{my_day_str}'
+    AND end_date >= '{my_day_str}'    
     ORDER BY departure_time ASC, stop_sequence ASC;
     '''
     )
@@ -192,7 +192,7 @@ def plot_frequency_by_interval(my_day_str, start_stop, end_stop, mode_id, interv
     trips_to_start_stop_record : dict[str, dict[str, str]] = {}
     correct_trips : dict[str, str] = {}
 
-    for departure_time, trip_id, stop_sequence, stop_id, route_short_name, route_long_name in potential_trips:
+    for departure_time, arrival_time, trip_id, stop_sequence, stop_id, route_short_name, route_long_name in potential_trips:
 
         if stop_id == start_stop:
             trips_to_start_stop_record[trip_id] = {'departure_time': departure_time, 'stop_sequence': stop_sequence}
@@ -200,10 +200,10 @@ def plot_frequency_by_interval(my_day_str, start_stop, end_stop, mode_id, interv
         if stop_id == end_stop and trip_id in trips_to_start_stop_record and int(trips_to_start_stop_record[trip_id]['stop_sequence']) <= int(stop_sequence):
             correct_trips[trip_id] = {
                 'trip_id': trip_id,
-                'departure_time': trips_to_start_stop_record[trip_id]['departure_time'],
-                'arrival_end': departure_time,
                 'route_short_name': route_short_name,
                 'route_long_name': route_long_name,
+                'departure_time': trips_to_start_stop_record[trip_id]['departure_time'],
+                'arrival_end': arrival_time,
             }
 
     if len(correct_trips) == 0:
