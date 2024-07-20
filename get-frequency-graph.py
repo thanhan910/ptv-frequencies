@@ -324,6 +324,10 @@ if __name__ == '__main__':
         if fig is not None and fig2 is not None and departure_minutes_df is not None and departure_minutes_df_2 is not None:
             fig.write_html(f'{output_dir}/interval-{interval_value_in_minutes}.html')
             fig2.write_html(f'{output_dir}/timetable.html')
+            departure_minutes_df['start_stop_name'] = start_stop_name
+            departure_minutes_df['end_stop_name'] = end_stop_name
+            departure_minutes_df['start_stop_id'] = start_stop
+            departure_minutes_df['end_stop_id'] = end_stop
             departure_minutes_df.to_csv(f'{output_dir}/timetable.csv', index=False)
             routes = departure_minutes_df['route_short_name'].unique()
         
