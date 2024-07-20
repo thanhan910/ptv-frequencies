@@ -4,15 +4,53 @@ import pandas as pd
 import psycopg2
 from datetime import datetime, timedelta
 
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import numpy as np
+
+def map_color(values, color_scheme_name):
+    """
+    Given a list of values, map each element to a color using a color scheme.
+
+    Parameters:
+    values (list of float): List of numerical values to map to colors.
+    color_scheme_name (str): Name of the color scheme to use (e.g., 'viridis', 'plasma', 'inferno').
+
+    Returns:
+    list of str: List of colors corresponding to the input values.
+    """
+    # Ensure values is a numpy array for easier manipulation
+    values = np.array(values)
+
+    # Normalize the values to the range [0, 1]
+    norm = plt.Normalize(vmin=np.min(values), vmax=np.max(values))
+
+    # Get the color map
+    cmap = plt.get_cmap(color_scheme_name)
+
+    # Map the normalized values to colors
+    colors = cmap(norm(values))
+
+    # Convert the RGBA colors to hex format
+    hex_colors = [mcolors.rgb2hex(c) for c in colors]
+
+    return hex_colors
+
 
 def plot_timetable_rectangles(start_stop: str, end_stop: str, my_day_str: str, mode_id: int, cursor: psycopg2.extensions.cursor) -> tuple[go.Figure, pd.DataFrame]:
     """
     Plot timetable rectangles
     """
 
+    my_day_str = str(my_day_str)
+    start_stop = str(start_stop)
+    end_stop = str(end_stop)
+    mode_id = int(mode_id)
+
+
     my_weekday_name = datetime.strptime(my_day_str, '%Y%m%d').strftime('%A').lower()
 
-    CURSOR.execute(
+    cursor.execute(
     f'''
     SELECT gtfs_{mode_id}.stop_times.departure_time, gtfs_{mode_id}.stop_times.trip_id, gtfs_{mode_id}.stop_times.stop_sequence, gtfs_{mode_id}.stop_times.stop_id, gtfs_{mode_id}.routes.route_short_name, gtfs_{mode_id}.routes.route_long_name
     FROM gtfs_{mode_id}.stop_times 
@@ -72,20 +110,19 @@ def plot_timetable_rectangles(start_stop: str, end_stop: str, my_day_str: str, m
         end_time = departure_minutes[i+1]
         width = end_time - start_time
         departure_intervals.append(width)
-    max_interval = max(departure_intervals)
-    assert max_interval < 60
-    max_interval = 60
 
     # Create rectangles
+
+    rectangle_colors = map_color(departure_intervals, 'rainbow_r')
+
     departure_shapes = []
     for i in range(0, len(departure_minutes) - 1):
         start_time = departure_minutes[i]
         end_time = departure_minutes[i+1]
+        
         width = end_time - start_time
         height = 60 / width
-
-        interval_minutes = width // 60
-        interval_seconds = width % 60
+        color = rectangle_colors[i]
 
         tooltip_text = f'Interval: {width} min <br>Frequency: {height:.2f} / Hour'
 
@@ -95,8 +132,8 @@ def plot_timetable_rectangles(start_stop: str, end_stop: str, my_day_str: str, m
             y=[0, 0, height, height, 0],
             mode='lines',
             fill='toself',
-            fillcolor='blue',
-            line=dict(color='blue'),
+            fillcolor=color,
+            line=dict(color=color),
             opacity=0.5,
             hoverinfo='text',  # Specify tooltip content
             text=tooltip_text
@@ -127,6 +164,11 @@ def plot_frequency_by_interval(my_day_str, start_stop, end_stop, mode_id, interv
     """
     Plot number of departures in each of an interval (e.g. 1 hour, 30 minutes, 15 minutes)
     """
+
+    my_day_str = str(my_day_str)
+    start_stop = str(start_stop)
+    end_stop = str(end_stop)
+    mode_id = int(mode_id)
 
     my_weekday_name = datetime.strptime(my_day_str, '%Y%m%d').strftime('%A').lower()
 
@@ -200,12 +242,17 @@ def plot_frequency_by_interval(my_day_str, start_stop, end_stop, mode_id, interv
         departure_interval_dict[start_hour]['count'] += 1
         
     # Create rectangles
+    rectangle_colors = map_color([obj['count'] for obj in departure_interval_dict.values()], 'rainbow')
+    for i, obj in enumerate(departure_interval_dict.values()):
+        obj['color'] = rectangle_colors[i]
+
     departure_shapes = []
     for obj in departure_interval_dict.values():
         start_time = obj['start']
         end_time = obj['end']
         width = end_time - start_time
         height = obj['count']
+        color = obj['color']
 
         tooltip_text = f'Interval: {width} min <br>Frequency: {height}'
 
@@ -215,8 +262,8 @@ def plot_frequency_by_interval(my_day_str, start_stop, end_stop, mode_id, interv
             y=[0, 0, height, height, 0],
             mode='lines',
             fill='toself',
-            fillcolor='blue',
-            line=dict(color='blue'),
+            fillcolor=color,
+            line=dict(color=color),
             opacity=0.5,
             hoverinfo='text',  # Specify tooltip content
             text=tooltip_text
@@ -251,29 +298,40 @@ if __name__ == '__main__':
     CURSOR = CONN.cursor()
 
     my_day_str = '20240723'
-    start_stop = '19842'
-    end_stop = '19843'
-    mode_id = 2
-    interval_value_in_minutes = 60
-    
-    fig, departure_minutes_df = plot_frequency_by_interval(my_day_str, start_stop, end_stop, mode_id, interval_value_in_minutes, CURSOR)
-    fig2, departure_minutes_df_2 = plot_timetable_rectangles(start_stop, end_stop, my_day_str, mode_id, CURSOR)
 
-    start_stop_name = CURSOR.execute(f"SELECT stop_name FROM gtfs_{mode_id}.stops WHERE stop_id = '{start_stop}'")
-    start_stop_name = CURSOR.fetchone()[0]
+    interval_value_in_minutes = 15
 
-    end_stop_name = CURSOR.execute(f"SELECT stop_name FROM gtfs_{mode_id}.stops WHERE stop_id = '{end_stop}'")
-    end_stop_name = CURSOR.fetchone()[0]
+    arr = [
+        (2, 19854, 19843),
+        (2, 19842, 19843),
+        (2, 19843, 19854),
+        (2, 19843, 19842),
+    ]
+    for mode_id, start_stop, end_stop in arr:
+        
+        fig, departure_minutes_df = plot_frequency_by_interval(my_day_str, start_stop, end_stop, mode_id, interval_value_in_minutes, CURSOR)
+        fig2, departure_minutes_df_2 = plot_timetable_rectangles(start_stop, end_stop, my_day_str, mode_id, CURSOR)
 
-    output_dir = f'./local/frequencies/{mode_id}-{my_day_str}-{start_stop}-{end_stop}'
-    os.makedirs(output_dir, exist_ok=True)
+        start_stop_name = CURSOR.execute(f"SELECT stop_name FROM gtfs_{mode_id}.stops WHERE stop_id = '{start_stop}'")
+        start_stop_name = CURSOR.fetchone()[0]
 
-    if fig is not None and fig2 is not None and departure_minutes_df is not None and departure_minutes_df_2 is not None:
-        fig.write_html(f'{output_dir}/interval-{interval_value_in_minutes}.html')
-        fig2.write_html(f'{output_dir}/timetable.html')
-        departure_minutes_df.to_csv(f'{output_dir}/timetable.csv', index=False)
-        routes = departure_minutes_df['route_short_name'].unique()
-        with open(f'{output_dir}/README.md', 'w') as f:
-            f.write(f'{start_stop_name} to {end_stop_name} on {my_day_str} for mode {mode_id}. ID: {start_stop} to {end_stop}.')
-            f.write('\n\n')
-            f.write(f'Routes: {', '.join(sorted(routes))}')
+        end_stop_name = CURSOR.execute(f"SELECT stop_name FROM gtfs_{mode_id}.stops WHERE stop_id = '{end_stop}'")
+        end_stop_name = CURSOR.fetchone()[0]
+
+        output_dir = f'./local/frequencies/{mode_id}-{my_day_str}-{start_stop}-{end_stop}'
+        os.makedirs(output_dir, exist_ok=True)
+
+        if fig is not None and fig2 is not None and departure_minutes_df is not None and departure_minutes_df_2 is not None:
+            fig.write_html(f'{output_dir}/interval-{interval_value_in_minutes}.html')
+            fig2.write_html(f'{output_dir}/timetable.html')
+            departure_minutes_df.to_csv(f'{output_dir}/timetable.csv', index=False)
+            routes = departure_minutes_df['route_short_name'].unique()
+        
+            with open(f'{output_dir}/README.md', 'w') as f:
+                f.write(f'{start_stop_name} to {end_stop_name} on {my_day_str} for mode {mode_id}. ID: {start_stop} to {end_stop}.')
+                f.write('\n\n')
+                f.write(f'Routes: {', '.join(sorted(routes))}')
+        
+        else:
+            with open(f'{output_dir}/README.md', 'w') as f:
+                f.write(f'No data found for {start_stop_name} to {end_stop_name} on {my_day_str} for mode {mode_id}. ID: {start_stop} to {end_stop}.')
